@@ -4,6 +4,8 @@
 # Set TELEGRAM_WEBHOOK_URL to https://<this-service-host>/<path> (same path you use in the URL).
 # Ephemeral disk: SQLite/Chroma live in the container unless you add a paid disk or external DB.
 #
+# python-telegram-bot 21.x is not compatible with Python 3.14 on Render; pin 3.12.x.
+#
 # Monorepo: repo root contains this file and `telegram-ai-bot/`. For a bot-only repo,
 # move `render.yaml` to that root and remove `rootDir`.
 
@@ -17,6 +19,8 @@ services:
     buildCommand: pip install -r requirements.txt
     startCommand: python main.py
     envVars:
+      - key: PYTHON_VERSION
+        value: 3.12.8
       - key: TELEGRAM_TOKEN
         sync: false
       - key: OWNER_CHAT_ID

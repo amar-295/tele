@@ -153,9 +153,10 @@ The blueprint at [`render.yaml`](../render.yaml) defines a **Web** service (not 
    - Existing secrets: `TELEGRAM_TOKEN`, `OWNER_CHAT_ID`, `GROQ_API_KEY`.
 5. **Redeploy** (or restart) so the process starts with the webhook env set. Telegram will call your HTTPS URL; Render forwards to `PORT`.
 
-**Persistence:** the free web instance uses **ephemeral** disk unless you add a paid [persistent disk](https://render.com/docs/disks) or point `CHROMA_PATH` / `DB_PATH` to external storage. Expect memory loss on full redeploys unless you add persistence.
+**Python on Render:** new services default to **Python 3.14**, which can break `python-telegram-bot` 21.x. This repo pins **`PYTHON_VERSION=3.12.8`** in the blueprint (and includes [`.python-version`](.python-version)). If you create the service manually, set that env var to a **full** `3.12.x` patch (see [Render Python version](https://render.com/docs/python-version)).
 
-### Manual Web service
+**Port:** Render sets **`PORT`**; the bot uses it in webhook mode. After deploy, set **`TELEGRAM_WEBHOOK_URL`** and **`TELEGRAM_WEBHOOK_SECRET`**, then redeploy so the process starts in webhook mode and listens on `PORT`.
+
 
 Create a **Web Service**, root directory `telegram-ai-bot`, build `pip install -r requirements.txt`, start `python main.py`, set the same environment variables as the blueprint.
 
