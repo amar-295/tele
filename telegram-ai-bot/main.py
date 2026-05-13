@@ -1,5 +1,6 @@
 import logging
 from datetime import timedelta
+from urllib.parse import urlparse
 
 from telegram.ext import ApplicationBuilder, MessageHandler, CommandHandler, filters
 
@@ -21,6 +22,29 @@ from utils.logger import setup_logger
 
 setup_logger()
 log = logging.getLogger(__name__)
+
+
+def _webhook_url_and_path(public_url: str) -> tuple[str, str]:
+    """
+    Return (canonical_webhook_url, url_path_without_leading_slash) for PTB run_webhook.
+    If the URL has no path, default path segment is ``telegram``.
+    """
+    raw = public_url.strip()
+    p = urlparse(raw)
+    if not p.scheme or not p.netloc:
+        raise ValueError(
+            "TELEGRAM_WEBHOOK_URL must be absolute, e.g. https://your-host.onrender.com/telegram"
+        )
+    path = (p.path or "").strip("/")
+    if not path:
+        path = "telegram"
+    canonical = f"{p.scheme}://{p.netloc}/{path}"
+    if p.scheme != "https":
+        log.warning(
+            "Webhook URL uses scheme %r; Telegram requires HTTPS in production.",
+            p.scheme,
+        )
+    return canonical, path
 
 
 async def post_init(application):
@@ -70,8 +94,26 @@ def main():
     app.add_handler(CommandHandler("stats",    cmd_stats,    filters=me))
     app.add_handler(MessageHandler(filters.TEXT & me, handle_message))
 
-    log.info("Polling started")
-    app.run_polling(drop_pending_updates=True)
+    if settings.telegram_webhook_url:
+        canonical, url_path = _webhook_url_and_path(settings.telegram_webhook_url)
+        log.info(
+            "Webhook mode | listen %s:%s | path %s | public %s",
+            settings.webhook_listen,
+            settings.webhook_port,
+            url_path,
+            canonical,
+        )
+        app.run_webhook(
+            listen=settings.webhook_listen,
+            port=settings.webhook_port,
+            url_path=url_path,
+            webhook_url=canonical,
+            secret_token=settings.telegram_webhook_secret,
+            drop_pending_updates=settings.drop_pending_updates,
+        )
+    else:
+        log.info("Long polling mode (set TELEGRAM_WEBHOOK_URL + TELEGRAM_WEBHOOK_SECRET for webhooks)")
+        app.run_polling(drop_pending_updates=True)
 
 
 if __name__ == "__main__":

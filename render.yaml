@@ -1,25 +1,21 @@
 # Render Blueprint — https://render.com/docs/infrastructure-as-code
 #
-# Background workers are not available on the free instance type; this uses
-# `starter`. Add secrets in the Render dashboard when prompted (sync: false).
+# Telegram webhooks need a **Web** service (HTTPS). Use free `plan: free` here.
+# Set TELEGRAM_WEBHOOK_URL to https://<this-service-host>/<path> (same path you use in the URL).
+# Ephemeral disk: SQLite/Chroma live in the container unless you add a paid disk or external DB.
 #
-# If your Git repo root is only `telegram-ai-bot/` (not this monorepo), either
-# move this file to that repo root and delete `rootDir`, or set Root Directory
-# to `telegram-ai-bot` when creating the service manually.
+# Monorepo: repo root contains this file and `telegram-ai-bot/`. For a bot-only repo,
+# move `render.yaml` to that root and remove `rootDir`.
 
 services:
-  - type: worker
+  - type: web
     name: telegram-ai-bot
     runtime: python
     region: oregon
-    plan: starter
+    plan: free
     rootDir: telegram-ai-bot
     buildCommand: pip install -r requirements.txt
     startCommand: python main.py
-    disk:
-      name: bot-data
-      mountPath: /var/renderdisk
-      sizeGB: 1
     envVars:
       - key: TELEGRAM_TOKEN
         sync: false
@@ -27,9 +23,7 @@ services:
         sync: false
       - key: GROQ_API_KEY
         sync: false
-      - key: CHROMA_PATH
-        value: /var/renderdisk/chroma
-      - key: DB_PATH
-        value: /var/renderdisk/bot.db
-      - key: LOGS_PATH
-        value: /var/renderdisk/logs
+      - key: TELEGRAM_WEBHOOK_URL
+        sync: false
+      - key: TELEGRAM_WEBHOOK_SECRET
+        sync: false

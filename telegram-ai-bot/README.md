@@ -34,6 +34,10 @@ python main.py
 
 Open Telegram, message your bot. It's alive.
 
+**Local default:** leave `TELEGRAM_WEBHOOK_URL` unset to use **long polling** (no public URL needed).
+
+**Cloud (Render, Railway, etc.):** set **webhooks** — see [Webhooks](#webhooks-telegram) below.
+
 Copy `.env.example` to `.env` and fill in the three required values. Never commit `.env` (it is gitignored).
 
 **Windows:** If `pip install -r requirements.txt` fails while building `chroma-hnswlib`, install [Microsoft C++ Build Tools](https://visualstudio.microsoft.com/visual-cpp-build-tools/) (Desktop development with C++ workload) and retry, or use a Python version for which Chroma publishes prebuilt wheels.
@@ -65,7 +69,21 @@ PROACTIVE_DIGEST_ENABLED=true
 PROACTIVE_DIGEST_INTERVAL_HOURS=24
 ```
 
-Requires `python-telegram-bot[job-queue]` (already in `requirements.txt`). The first digest runs about two minutes after startup, then on the interval you set. Only `OWNER_CHAT_ID` receives these messages.
+Requires `python-telegram-bot[job-queue,webhooks]` (see `requirements.txt`). The first digest runs about two minutes after startup, then on the interval you set. Only `OWNER_CHAT_ID` receives these messages.
+
+---
+
+## Webhooks (Telegram)
+
+If `TELEGRAM_WEBHOOK_URL` and `TELEGRAM_WEBHOOK_SECRET` are set in `.env`, the bot runs in **webhook** mode (embedded HTTP server via `python-telegram-bot[webhooks]`). Otherwise it uses **long polling** (default for local dev).
+
+1. **HTTPS URL** Telegram can reach (production). Example: `https://your-service.onrender.com/telegram` — the path (`telegram` here) must match the path your host forwards to the app. If you omit a path (e.g. `https://host.com` only), the app defaults the path to `telegram`.
+2. **`TELEGRAM_WEBHOOK_SECRET`** — long random string; Telegram sends it as `X-Telegram-Bot-Api-Secret-Token` and PTB rejects wrong/missing values.
+3. **`PORT`** — bind port for the webhook server (Render injects `PORT`, often `10000`).
+4. **`WEBHOOK_LISTEN`** — default `0.0.0.0`.
+5. **`DROP_PENDING_UPDATES`** — optional `true` to clear pending updates when the webhook is set.
+
+**Local testing:** use [ngrok](https://ngrok.com/) (or similar) to expose `http://localhost:PORT` as HTTPS, then set `TELEGRAM_WEBHOOK_URL` to the ngrok HTTPS URL including the path.
 
 ---
 
@@ -87,6 +105,7 @@ Requires `python-telegram-bot[job-queue]` (already in `requirements.txt`). The f
 You (Telegram)
       ↓
 Bot server (python-telegram-bot)
+  ├─ Long polling OR HTTPS webhook (env-driven)
   ├─ Rate filter (owner-only hard gate)
   ├─ Error boundary (never crashes)
   └─ Message handler
@@ -113,7 +132,7 @@ Optional: JobQueue periodic digest → owner chat (stats only, see README)
 
 1. Push to GitHub
 2. Go to https://railway.app → New Project → Deploy from GitHub
-3. Add your 3 env vars in the Railway dashboard
+3. Add environment variables from [`.env.example`](.env.example) (at minimum `TELEGRAM_TOKEN`, `OWNER_CHAT_ID`, `GROQ_API_KEY`). For **HTTPS webhooks** on a public URL, also set `TELEGRAM_WEBHOOK_URL` and `TELEGRAM_WEBHOOK_SECRET` (see [Webhooks](#webhooks-telegram)).
 4. Done — runs 24/7 for free
 
 > Note: Railway's free tier has sleep on inactivity. For always-on free hosting,
@@ -121,32 +140,25 @@ Optional: JobQueue periodic digest → owner chat (stats only, see README)
 
 ---
 
-## Deploy on Render
+## Deploy on Render (webhooks + free web tier)
 
-This bot uses **long polling** (`python main.py`), so run it as a [**Background Worker**](https://render.com/docs/background-workers), not a public web service.
+The blueprint at [`render.yaml`](../render.yaml) defines a **Web** service (not a background worker) so Telegram can **POST** updates over HTTPS while staying on Render’s **free** web plan.
 
-**Note:** Render’s **free** instance type does **not** apply to background workers. You need at least a **Starter** worker (paid). See [Render pricing](https://render.com/pricing).
+1. Push the repo (root contains `render.yaml` and `telegram-ai-bot/`).
+2. [Render Dashboard](https://dashboard.render.com) → **New** → **Blueprint** → connect the repo.
+3. After the first deploy, note the service URL, e.g. `https://telegram-ai-bot.onrender.com`.
+4. In the service **Environment**, set:
+   - `TELEGRAM_WEBHOOK_URL` = `https://<your-host>/<path>` (example: `https://telegram-ai-bot.onrender.com/telegram`). Path must match what you choose; default path segment if you use only the hostname is `telegram` — see [Webhooks](#webhooks-telegram).
+   - `TELEGRAM_WEBHOOK_SECRET` = a long random string.
+   - Existing secrets: `TELEGRAM_TOKEN`, `OWNER_CHAT_ID`, `GROQ_API_KEY`.
+5. **Redeploy** (or restart) so the process starts with the webhook env set. Telegram will call your HTTPS URL; Render forwards to `PORT`.
 
-### Option A — Blueprint (monorepo)
+**Persistence:** the free web instance uses **ephemeral** disk unless you add a paid [persistent disk](https://render.com/docs/disks) or point `CHROMA_PATH` / `DB_PATH` to external storage. Expect memory loss on full redeploys unless you add persistence.
 
-If your Git repo root matches this workspace (parent folder + `telegram-ai-bot/`):
+### Manual Web service
 
-1. Push to GitHub. The repo root should include [`render.yaml`](../render.yaml) next to the `telegram-ai-bot/` folder.
-2. [Render Dashboard](https://dashboard.render.com) → **New** → **Blueprint** → select the repo.
-3. Set secret env vars when prompted: `TELEGRAM_TOKEN`, `OWNER_CHAT_ID`, `GROQ_API_KEY`.
-4. Deploy. Build uses `rootDir: telegram-ai-bot` and runs `pip install -r requirements.txt` then `python main.py`.
+Create a **Web Service**, root directory `telegram-ai-bot`, build `pip install -r requirements.txt`, start `python main.py`, set the same environment variables as the blueprint.
 
-The included blueprint attaches a **1 GB persistent disk** and sets `CHROMA_PATH`, `DB_PATH`, and `LOGS_PATH` under `/var/renderdisk` so memory survives redeploys. To use ephemeral storage only, remove the `disk` block and the three path env entries from `render.yaml`.
+If the Git repo **is** only the `telegram-ai-bot` folder, put `render.yaml` in that repo’s root and remove the `rootDir` line.
 
-### Option B — Manual worker
-
-1. **New** → **Background Worker** → connect the repo.
-2. **Root Directory:** `telegram-ai-bot` if the app lives in that subfolder.
-3. **Build command:** `pip install -r requirements.txt`  
-   **Start command:** `python main.py`
-4. Add environment variables from [`.env.example`](.env.example) (minimum: `TELEGRAM_TOKEN`, `OWNER_CHAT_ID`, `GROQ_API_KEY`).
-5. Optional: [Persistent disk](https://render.com/docs/disks) mounted e.g. at `/var/renderdisk`, then set `CHROMA_PATH`, `DB_PATH`, `LOGS_PATH` under that mount.
-
-If the Git repo **is** only the `telegram-ai-bot` folder, put `render.yaml` in that repo’s root, remove the `rootDir` line from the service, and use the Blueprint from that repo.
-
-Message your bot once the service is **Live**.
+Message your bot once logs show webhook mode and the service is **Live**.

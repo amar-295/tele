@@ -1,12 +1,21 @@
 from pathlib import Path
+from typing import Optional
+
+from pydantic import Field, model_validator
 from pydantic_settings import BaseSettings
-from pydantic import Field
 
 
 class Settings(BaseSettings):
     # ── Telegram ──────────────────────────────────────────────────────────────
     telegram_token:  str = Field(..., env="TELEGRAM_TOKEN")
     owner_chat_id:   int = Field(..., env="OWNER_CHAT_ID")
+    # Webhook mode: set both to switch from long polling (HTTPS URL Telegram can reach).
+    telegram_webhook_url: Optional[str] = Field(None, env="TELEGRAM_WEBHOOK_URL")
+    telegram_webhook_secret: Optional[str] = Field(None, env="TELEGRAM_WEBHOOK_SECRET")
+    webhook_listen: str = Field("0.0.0.0", env="WEBHOOK_LISTEN")
+    # Render and many hosts inject PORT; used only in webhook mode.
+    webhook_port: int = Field(8080, env="PORT")
+    drop_pending_updates: bool = Field(False, env="DROP_PENDING_UPDATES")
 
     # ── Groq API (OpenAI-compatible) ──────────────────────────────────────────
     groq_api_key:  str = Field(..., env="GROQ_API_KEY")
@@ -42,6 +51,22 @@ class Settings(BaseSettings):
 
     class Config:
         env_file = ".env"
+
+    @model_validator(mode="after")
+    def _webhook_consistency(self) -> "Settings":
+        url = (self.telegram_webhook_url or "").strip()
+        if not url:
+            object.__setattr__(self, "telegram_webhook_url", None)
+            return self
+        secret = (self.telegram_webhook_secret or "").strip()
+        if not secret:
+            raise ValueError(
+                "TELEGRAM_WEBHOOK_SECRET is required when TELEGRAM_WEBHOOK_URL is set "
+                "(Telegram sends it as header X-Telegram-Bot-Api-Secret-Token)."
+            )
+        object.__setattr__(self, "telegram_webhook_url", url)
+        object.__setattr__(self, "telegram_webhook_secret", secret)
+        return self
 
 
 settings = Settings()
