@@ -117,7 +117,12 @@ def main():
             drop_pending_updates=settings.drop_pending_updates,
         )
     else:
-        log.info("Long polling mode (set TELEGRAM_WEBHOOK_URL + TELEGRAM_WEBHOOK_SECRET for webhooks)")
+        log.warning(
+            "Long polling — TELEGRAM_WEBHOOK_URL is not set. On Render, add "
+            "TELEGRAM_WEBHOOK_URL + TELEGRAM_WEBHOOK_SECRET to **this Web Service’s** Environment "
+            "(not only the Blueprint file), save, then **Manual Deploy**. "
+            "Also stop any local `python main.py` or two pollers cause getUpdates Conflict."
+        )
         app.run_polling(drop_pending_updates=True)
 
 
