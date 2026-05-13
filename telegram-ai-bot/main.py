@@ -73,6 +73,11 @@ async def post_init(application):
                 settings.proactive_digest_interval_hours,
             )
 
+    # Polling only: clear any registered webhook so getUpdates works; avoids stale webhook.
+    if not settings.telegram_webhook_url:
+        await application.bot.delete_webhook(drop_pending_updates=False)
+        log.info("Cleared Telegram webhook (polling mode)")
+
 
 def main():
     app = (

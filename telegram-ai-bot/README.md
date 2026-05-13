@@ -83,9 +83,10 @@ If `TELEGRAM_WEBHOOK_URL` and `TELEGRAM_WEBHOOK_SECRET` are set in `.env`, the b
 4. **`WEBHOOK_LISTEN`** — default `0.0.0.0`.
 5. **`DROP_PENDING_UPDATES`** — optional `true` to clear pending updates when the webhook is set.
 
-**Local testing:** use [ngrok](https://ngrok.com/) (or similar) to expose `http://localhost:PORT` as HTTPS, then set `TELEGRAM_WEBHOOK_URL` to the ngrok HTTPS URL including the path.
+**Conflict / “other getUpdates request”:** Telegram allows **only one** active way to receive updates per bot token. That error almost always means **two processes are polling** (for example Render **and** your PC still running `python main.py`). **Stop** every other copy, or move Render to **webhooks** and keep only one process. Only one of: local polling, Render polling, or webhook server.
 
----
+**No open ports on Render:** in **long polling** mode the app does not listen on `PORT`. Use **webhooks** on Render (set `TELEGRAM_WEBHOOK_URL` + `TELEGRAM_WEBHOOK_SECRET`) so the service binds `PORT`.
+
 
 ## Commands
 
