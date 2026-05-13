@@ -1,0 +1,35 @@
+# Render Blueprint — https://render.com/docs/infrastructure-as-code
+#
+# Background workers are not available on the free instance type; this uses
+# `starter`. Add secrets in the Render dashboard when prompted (sync: false).
+#
+# If your Git repo root is only `telegram-ai-bot/` (not this monorepo), either
+# move this file to that repo root and delete `rootDir`, or set Root Directory
+# to `telegram-ai-bot` when creating the service manually.
+
+services:
+  - type: worker
+    name: telegram-ai-bot
+    runtime: python
+    region: oregon
+    plan: starter
+    rootDir: telegram-ai-bot
+    buildCommand: pip install -r requirements.txt
+    startCommand: python main.py
+    disk:
+      name: bot-data
+      mountPath: /var/renderdisk
+      sizeGB: 1
+    envVars:
+      - key: TELEGRAM_TOKEN
+        sync: false
+      - key: OWNER_CHAT_ID
+        sync: false
+      - key: GROQ_API_KEY
+        sync: false
+      - key: CHROMA_PATH
+        value: /var/renderdisk/chroma
+      - key: DB_PATH
+        value: /var/renderdisk/bot.db
+      - key: LOGS_PATH
+        value: /var/renderdisk/logs
