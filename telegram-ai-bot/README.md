@@ -60,6 +60,20 @@ Defaults are conservative for a personal bot; change one knob at a time.
 
 ---
 
+## Permanent database (PostgreSQL, optional)
+
+By default the bot stores **messages, extracted facts, and stats** in **SQLite** at `DB_PATH`. On hosts with **ephemeral disk** (for example a free Render web instance), that file is lost when the container restarts.
+
+Set **`DATABASE_URL`** to a [PostgreSQL](https://www.postgresql.org/) connection string to use **Postgres** instead of SQLite for those tables. Leave `DATABASE_URL` unset to keep SQLite locally.
+
+**Supabase:** In the [Database settings](https://supabase.com/dashboard/project/_/settings/database) for your project, open **Connection string** → **URI**. For this long‑running bot, use **Direct connection** or the **Session pooler** — not the **Transaction** pooler (`:6543`), which does not play well with `asyncpg`’s prepared statements. Use your real project host and password; add `?sslmode=require` if the URI does not already include SSL params.
+
+**Vector memory** still uses **ChromaDB** on disk at `CHROMA_PATH`; it is not moved into Postgres by this setting. For fully durable vectors on ephemeral hosts you would need a persistent disk or a different vector backend later.
+
+After changing `DATABASE_URL`, redeploy or restart so `asyncpg` opens the pool and creates tables on first run.
+
+---
+
 ## Proactive check-ins (optional)
 
 By default the bot only replies when you message it. To get periodic **stats-only** check-ins (no extra LLM call), set in `.env`:
@@ -112,17 +126,17 @@ Bot server (python-telegram-bot)
   └─ Message handler
          ↓
    AI Pipeline
-     1. Fetch: history (SQLite) + facts (SQLite) + recall (ChromaDB)  ← parallel
+     1. Fetch: history + facts (SQLite or Postgres) + recall (ChromaDB)  ← parallel
      2. Build system prompt with injected memory
      3. Trim history to token budget
      4. Call Groq API (retry + backoff)
-     5. Save reply to SQLite
+     5. Save reply to SQLite or Postgres
      6. Background: embed exchange → ChromaDB
-     7. Background: extract new facts → SQLite + ChromaDB
+     7. Background: extract new facts → SQLite or Postgres + ChromaDB
          ↓
-   Storage (100% local)
-     ├─ SQLite (WAL)  — messages, facts, stats
-     └─ ChromaDB      — vector embeddings (facts + conversations)
+   Storage
+     ├─ SQLite (default) or PostgreSQL (`DATABASE_URL`) — messages, facts, stats
+     └─ ChromaDB — vector embeddings (facts + conversations), path `CHROMA_PATH`
 
 Optional: JobQueue periodic digest → owner chat (stats only, see README)
 ```
@@ -152,6 +166,7 @@ The blueprint at [`render.yaml`](../render.yaml) defines a **Web** service (not 
    - `TELEGRAM_WEBHOOK_URL` = `https://<your-host>/<path>` (example: `https://telegram-ai-bot.onrender.com/telegram`). Path must match what you choose; default path segment if you use only the hostname is `telegram` — see [Webhooks](#webhooks-telegram).
    - `TELEGRAM_WEBHOOK_SECRET` = a long random string.
    - Existing secrets: `TELEGRAM_TOKEN`, `OWNER_CHAT_ID`, `GROQ_API_KEY`.
+   - Optional: **`DATABASE_URL`** from a [Render Postgres](https://render.com/docs/databases) instance so message history and facts survive redeploys (see [Permanent database](#permanent-database-postgresql-optional)).
 5. **Redeploy** (or restart) so the process starts with the webhook env set. Telegram will call your HTTPS URL; Render forwards to `PORT`.
 
 **Python on Render:** new services default to **Python 3.14**, which can break `python-telegram-bot` 21.x. This repo pins **`PYTHON_VERSION=3.12.8`** in the blueprint (and includes [`.python-version`](.python-version)). If you create the service manually, set that env var to a **full** `3.12.x` patch (see [Render Python version](https://render.com/docs/python-version)).

@@ -30,6 +30,9 @@ class Settings(BaseSettings):
     # Cosine distance cutoff for keeping a hit; lower = stricter (fewer, sharper memories).
     memory_threshold: float = Field(0.60, env="MEMORY_THRESHOLD")
 
+    # ── PostgreSQL (optional) ─────────────────────────────────────────────────
+    database_url: Optional[str] = Field(None, env="DATABASE_URL")
+
     # ── Storage ───────────────────────────────────────────────────────────────
     db_path:   str = Field("./data/bot.db",  env="DB_PATH")
     logs_path: str = Field("./data/logs",    env="LOGS_PATH")
@@ -71,6 +74,8 @@ class Settings(BaseSettings):
 
 settings = Settings()
 
-# Ensure all data directories exist on startup
-for _p in [settings.chroma_path, Path(settings.db_path).parent, settings.logs_path]:
+# Ensure data directories exist (skip SQLite file parent if using Postgres)
+for _p in [settings.chroma_path, settings.logs_path]:
     Path(_p).mkdir(parents=True, exist_ok=True)
+if not (settings.database_url and settings.database_url.strip()):
+    Path(settings.db_path).parent.mkdir(parents=True, exist_ok=True)

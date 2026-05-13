@@ -2,7 +2,8 @@
 #
 # Telegram webhooks need a **Web** service (HTTPS). Use free `plan: free` here.
 # Set TELEGRAM_WEBHOOK_URL to https://<this-service-host>/<path> (same path you use in the URL).
-# Ephemeral disk: SQLite/Chroma live in the container unless you add a paid disk or external DB.
+# Ephemeral disk: SQLite/Chroma live in the container unless you add a paid disk or set
+# DATABASE_URL (Postgres) for messages/facts/stats — see telegram-ai-bot/README.md.
 #
 # python-telegram-bot 21.x is not compatible with Python 3.14 on Render; pin 3.12.x.
 #
