@@ -66,7 +66,7 @@ By default the bot stores **messages, extracted facts, and stats** in **SQLite**
 
 Set **`DATABASE_URL`** to a [PostgreSQL](https://www.postgresql.org/) connection string to use **Postgres** instead of SQLite for those tables. Leave `DATABASE_URL` unset to keep SQLite locally.
 
-**Supabase:** In the [Database settings](https://supabase.com/dashboard/project/_/settings/database) for your project, open **Connection string** → **URI**. For this long‑running bot, use **Direct connection** or the **Session pooler** — not the **Transaction** pooler (`:6543`), which does not play well with `asyncpg`’s prepared statements. Use your real project host and password; add `?sslmode=require` if the URI does not already include SSL params.
+**Supabase:** In the [Database settings](https://supabase.com/dashboard/project/_/settings/database) for your project, open **Connection string** → **URI**. For this long‑running bot, use **Direct connection** or the **Session pooler** — not the **Transaction** pooler (`:6543`), which does not play well with `asyncpg`’s prepared statements. Use your real project host and password. URIs with `sslmode=require` (typical) use encrypted TLS without strict certificate pinning, matching PostgreSQL’s meaning of `require`. For `sslmode=verify-full` you must trust Supabase’s CA (see Supabase SSL docs).
 
 **Vector memory** still uses **ChromaDB** on disk at `CHROMA_PATH`; it is not moved into Postgres by this setting. For fully durable vectors on ephemeral hosts you would need a persistent disk or a different vector backend later.
 

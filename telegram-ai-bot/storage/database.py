@@ -77,11 +77,24 @@ def _now_utc() -> datetime:
     return datetime.now(timezone.utc)
 
 
-def _postgres_ssl_context() -> ssl.SSLContext:
-    """CA bundle for TLS verify (fixes Render etc. missing roots for Supabase)."""
+def _postgres_ssl_context_verify() -> ssl.SSLContext:
+    """``sslmode=verify-ca`` / ``verify-full``: check server cert (Mozilla CA bundle)."""
     import certifi
 
     return ssl.create_default_context(cafile=certifi.where())
+
+
+def _postgres_ssl_context_require() -> ssl.SSLContext:
+    """``sslmode=require`` (and similar): TLS encryption without server cert verification.
+
+    Matches PostgreSQL/libpq semantics. Supabase session pooler chains often fail
+    strict public-CA verification; ``require`` is what their dashboard URIs use.
+    """
+    ctx = ssl.SSLContext(ssl.PROTOCOL_TLS_CLIENT)
+    ctx.check_hostname = False
+    ctx.verify_mode = ssl.CERT_NONE
+    ctx.minimum_version = ssl.TLSVersion.TLSv1_2
+    return ctx
 
 
 def _asyncpg_pool_kwargs(dsn: str) -> Dict[str, Any]:
@@ -121,16 +134,26 @@ def _asyncpg_pool_kwargs(dsn: str) -> Dict[str, Any]:
         "database": database,
     }
 
+    # libpq sslmode: "require" encrypts but does NOT verify server cert.
+    # Only verify-ca / verify-full perform CA (and hostname) checks.
     use_ssl: Optional[bool] = None
+    verify_peer: bool = False
     if sslmode == "disable":
         use_ssl = False
-    elif sslmode in ("require", "verify-ca", "verify-full", "prefer"):
+    elif sslmode in ("verify-ca", "verify-full"):
         use_ssl = True
+        verify_peer = True
+    elif sslmode in ("require", "prefer", "allow"):
+        use_ssl = True
+        verify_peer = False
     elif "supabase" in host.lower():
         use_ssl = True
+        verify_peer = False
 
     if use_ssl is True:
-        kwargs["ssl"] = _postgres_ssl_context()
+        kwargs["ssl"] = (
+            _postgres_ssl_context_verify() if verify_peer else _postgres_ssl_context_require()
+        )
     elif use_ssl is False:
         kwargs["ssl"] = False
 
