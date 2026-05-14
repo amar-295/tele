@@ -49,7 +49,7 @@ def _webhook_url_and_path(public_url: str) -> tuple[str, str]:
 
 async def post_init(application):
     await Database.init()
-    MemoryStore.init()
+    await MemoryStore.init()
     log.info("Bot ready. Owner ID: %s | Model: %s", settings.owner_chat_id, settings.groq_model)
 
     if settings.proactive_digest_enabled:

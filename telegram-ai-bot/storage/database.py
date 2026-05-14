@@ -68,6 +68,21 @@ CREATE TABLE IF NOT EXISTS kv_stats (
     "CREATE INDEX IF NOT EXISTS idx_facts_ts ON facts (created_at DESC)",
 ]
 
+# pgvector: same DB as app when using Postgres (persists across Render redeploys).
+_PG_VECTOR_DDL = [
+    "CREATE EXTENSION IF NOT EXISTS vector",
+    """
+CREATE TABLE IF NOT EXISTS embedding_memory (
+    id          TEXT PRIMARY KEY,
+    collection  TEXT NOT NULL CHECK (collection IN ('facts', 'conversations')),
+    content     TEXT NOT NULL,
+    embedding   vector(384) NOT NULL,
+    created_at  TIMESTAMPTZ NOT NULL DEFAULT (timezone('utc', now()))
+)
+""",
+    "CREATE INDEX IF NOT EXISTS idx_embedding_memory_coll ON embedding_memory (collection)",
+]
+
 
 def _now_iso() -> str:
     return datetime.now(timezone.utc).isoformat()
@@ -201,8 +216,10 @@ class Database:
             async with cls._pg.acquire() as conn:
                 for stmt in _PG_DDL:
                     await conn.execute(stmt)
+                for stmt in _PG_VECTOR_DDL:
+                    await conn.execute(stmt)
             cls._sqlite = None
-            log.info("PostgreSQL ready (DATABASE_URL)")
+            log.info("PostgreSQL ready (DATABASE_URL) | pgvector extension + embedding_memory")
             return
 
         cls._sqlite = await aiosqlite.connect(settings.db_path, check_same_thread=False)
@@ -210,6 +227,11 @@ class Database:
         await cls._sqlite.executescript(_SQLITE_SCHEMA)
         await cls._sqlite.commit()
         log.info("SQLite ready — %s", settings.db_path)
+
+    @classmethod
+    def pg_pool(cls):
+        """Connection pool when ``DATABASE_URL`` is set; ``None`` for SQLite-only."""
+        return cls._pg
 
     @classmethod
     async def close(cls) -> None:

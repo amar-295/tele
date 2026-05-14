@@ -68,7 +68,7 @@ Set **`DATABASE_URL`** to a [PostgreSQL](https://www.postgresql.org/) connection
 
 **Supabase:** In the [Database settings](https://supabase.com/dashboard/project/_/settings/database) for your project, open **Connection string** → **URI**. For this long‑running bot, use **Direct connection** or the **Session pooler** — not the **Transaction** pooler (`:6543`), which does not play well with `asyncpg`’s prepared statements. Use your real project host and password. URIs with `sslmode=require` (typical) use encrypted TLS without strict certificate pinning, matching PostgreSQL’s meaning of `require`. For `sslmode=verify-full` you must trust Supabase’s CA (see Supabase SSL docs).
 
-**Vector memory** still uses **ChromaDB** on disk at `CHROMA_PATH`; it is not moved into Postgres by this setting. For fully durable vectors on ephemeral hosts you would need a persistent disk or a different vector backend later.
+**Vector memory** still uses **ChromaDB** on disk at `CHROMA_PATH` when you use **SQLite only**. When **`DATABASE_URL`** is set (Postgres, e.g. Supabase), the same database stores vectors in **`embedding_memory`** via the **`vector`** extension (**pgvector**), so embeddings survive host redeploys without a paid Render disk. The app runs `CREATE EXTENSION IF NOT EXISTS vector` on startup (enable **vector** under Database → Extensions in Supabase if your plan requires toggling it first).
 
 After changing `DATABASE_URL`, redeploy or restart so `asyncpg` opens the pool and creates tables on first run.
 
@@ -126,17 +126,17 @@ Bot server (python-telegram-bot)
   └─ Message handler
          ↓
    AI Pipeline
-     1. Fetch: history + facts (SQLite or Postgres) + recall (ChromaDB)  ← parallel
+     1. Fetch: history + facts (SQLite or Postgres) + recall (Chroma or pgvector)  ← parallel
      2. Build system prompt with injected memory
      3. Trim history to token budget
      4. Call Groq API (retry + backoff)
      5. Save reply to SQLite or Postgres
-     6. Background: embed exchange → ChromaDB
-     7. Background: extract new facts → SQLite or Postgres + ChromaDB
+     6. Background: embed exchange → Chroma or pgvector
+     7. Background: extract new facts → DB + Chroma or pgvector
          ↓
    Storage
-     ├─ SQLite (default) or PostgreSQL (`DATABASE_URL`) — messages, facts, stats
-     └─ ChromaDB — vector embeddings (facts + conversations), path `CHROMA_PATH`
+     ├─ SQLite (default) or PostgreSQL (`DATABASE_URL`) — messages, facts, stats + pgvector rows
+     └─ ChromaDB (`CHROMA_PATH`) only when SQLite; with Postgres, vectors live in `embedding_memory`
 
 Optional: JobQueue periodic digest → owner chat (stats only, see README)
 ```

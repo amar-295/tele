@@ -32,7 +32,7 @@ async def extract_and_store(user_msg: str, bot_reply: str) -> None:
     """
     Non-blocking background task:
       1. Ask the LLM to extract facts from the exchange.
-      2. Persist each new fact to SQLite and ChromaDB.
+      2. Persist each new fact to the database and the vector store (Chroma or pgvector).
     Errors are swallowed so they never affect the main reply.
     """
     try:
