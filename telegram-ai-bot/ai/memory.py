@@ -190,13 +190,7 @@ class MemoryStore:
 
         async def _q(coll: str, k: int) -> List[str]:
             async with pool.acquire() as conn:
-                c_row = await conn.fetchrow(
-                    "SELECT COUNT(*)::int AS c FROM embedding_memory WHERE collection = $1",
-                    coll,
-                )
-                if not c_row or c_row["c"] == 0:
-                    return []
-                lim = min(k, c_row["c"])
+                # ⚡ Bolt: skip O(N) COUNT(*) check. Postgres LIMIT gracefully handles fewer rows.
                 rows = await conn.fetch(
                     """
                     SELECT content, (embedding <=> $1::vector) AS dist
@@ -207,7 +201,7 @@ class MemoryStore:
                     """,
                     q_lit,
                     coll,
-                    lim,
+                    k,
                 )
             return [r["content"] for r in rows if float(r["dist"]) < threshold]
 
