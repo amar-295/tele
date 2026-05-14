@@ -1,5 +1,6 @@
 import json
 import logging
+import asyncio
 from typing import List
 
 from ai.llm import call_llm
@@ -50,10 +51,9 @@ async def extract_and_store(user_msg: str, bot_reply: str) -> None:
         if not isinstance(facts, list):
             return
 
-        new_count = 0
-        for fact in facts[:5]:
+        async def process_fact(fact) -> bool:
             if not isinstance(fact, str) or len(fact.strip()) < 8:
-                continue
+                return False
 
             fact = fact.strip()
             is_new = await Database.add_fact(fact, source="extracted")
@@ -61,7 +61,11 @@ async def extract_and_store(user_msg: str, bot_reply: str) -> None:
                 # Deterministic ID from content hash
                 doc_id = f"fact_{abs(hash(fact)):010d}"
                 await MemoryStore.save(fact, doc_id, collection="facts")
-                new_count += 1
+                return True
+            return False
+
+        results = await asyncio.gather(*(process_fact(fact) for fact in facts[:5]))
+        new_count = sum(results)
 
         if new_count:
             log.info("Extractor saved %d new fact(s)", new_count)
