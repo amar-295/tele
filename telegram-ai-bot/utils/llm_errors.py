@@ -2,7 +2,6 @@
 Map OpenAI-compatible SDK errors (used with Groq) to clear Telegram replies.
 """
 
-from __future__ import annotations
 
 from typing import Optional
 
