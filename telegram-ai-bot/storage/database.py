@@ -1,4 +1,5 @@
 import logging
+import ssl
 from datetime import datetime, timezone
 from typing import Any, Dict, List, Optional
 from urllib.parse import parse_qs, unquote, urlparse
@@ -76,6 +77,13 @@ def _now_utc() -> datetime:
     return datetime.now(timezone.utc)
 
 
+def _postgres_ssl_context() -> ssl.SSLContext:
+    """CA bundle for TLS verify (fixes Render etc. missing roots for Supabase)."""
+    import certifi
+
+    return ssl.create_default_context(cafile=certifi.where())
+
+
 def _asyncpg_pool_kwargs(dsn: str) -> Dict[str, Any]:
     """
     Build asyncpg.create_pool kwargs from DATABASE_URL.
@@ -122,7 +130,7 @@ def _asyncpg_pool_kwargs(dsn: str) -> Dict[str, Any]:
         use_ssl = True
 
     if use_ssl is True:
-        kwargs["ssl"] = True
+        kwargs["ssl"] = _postgres_ssl_context()
     elif use_ssl is False:
         kwargs["ssl"] = False
 
