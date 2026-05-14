@@ -1,6 +1,7 @@
 import logging
 from datetime import datetime, timezone
-from typing import Dict, List, Optional
+from typing import Any, Dict, List, Optional
+from urllib.parse import parse_qs, unquote, urlparse
 
 import aiosqlite
 from config import settings
@@ -75,6 +76,59 @@ def _now_utc() -> datetime:
     return datetime.now(timezone.utc)
 
 
+def _asyncpg_pool_kwargs(dsn: str) -> Dict[str, Any]:
+    """
+    Build asyncpg.create_pool kwargs from DATABASE_URL.
+
+    Passing user/password/host explicitly avoids URI quirks (encoded ``@`` in
+    passwords, query params) that can still bite ``asyncpg``/libpq on some hosts.
+    """
+    raw = dsn.strip()
+    if raw.startswith("postgres://"):
+        raw = "postgresql://" + raw[len("postgres://") :]
+    parsed = urlparse(raw)
+    scheme = (parsed.scheme or "").lower()
+    if scheme not in ("postgresql", "postgres"):
+        raise ValueError(
+            f"DATABASE_URL must use postgresql:// or postgres://, got scheme {scheme!r}"
+        )
+
+    user = unquote(parsed.username) if parsed.username else None
+    password = unquote(parsed.password) if parsed.password is not None else ""
+    host = parsed.hostname
+    if not host or not user:
+        raise ValueError("DATABASE_URL must include a host and user (e.g. postgres.<ref>)")
+
+    port = parsed.port or 5432
+    database = (parsed.path or "").removeprefix("/").strip() or "postgres"
+
+    qs = parse_qs(parsed.query)
+    sslmode = (qs.get("sslmode", [""])[0] or "").lower()
+
+    kwargs: Dict[str, Any] = {
+        "host": host,
+        "port": port,
+        "user": user,
+        "password": password,
+        "database": database,
+    }
+
+    use_ssl: Optional[bool] = None
+    if sslmode == "disable":
+        use_ssl = False
+    elif sslmode in ("require", "verify-ca", "verify-full", "prefer"):
+        use_ssl = True
+    elif "supabase" in host.lower():
+        use_ssl = True
+
+    if use_ssl is True:
+        kwargs["ssl"] = True
+    elif use_ssl is False:
+        kwargs["ssl"] = False
+
+    return kwargs
+
+
 class Database:
     """SQLite (default) or PostgreSQL when ``DATABASE_URL`` is set."""
 
@@ -92,11 +146,27 @@ class Database:
         if cls._use_postgres():
             import asyncpg
 
-            cls._pg = await asyncpg.create_pool(
-                settings.database_url.strip(),
-                min_size=1,
-                max_size=10,
-            )
+            try:
+                pool_kwargs = _asyncpg_pool_kwargs(settings.database_url.strip())
+            except ValueError as exc:
+                log.error("Invalid DATABASE_URL: %s", exc)
+                raise
+
+            try:
+                cls._pg = await asyncpg.create_pool(
+                    min_size=1,
+                    max_size=10,
+                    **pool_kwargs,
+                )
+            except asyncpg.exceptions.InvalidPasswordError:
+                log.error(
+                    "PostgreSQL password rejected — copy the DB password from "
+                    "Supabase → Project Settings → Database (not API keys). "
+                    "Pooler user must be postgres.<project_ref>. "
+                    "If the password has @ # / etc., percent-encode it in the URL "
+                    "or reset the DB password to a simpler string and update Render."
+                )
+                raise
             async with cls._pg.acquire() as conn:
                 for stmt in _PG_DDL:
                     await conn.execute(stmt)
