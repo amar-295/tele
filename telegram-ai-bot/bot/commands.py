@@ -1,5 +1,4 @@
 import logging
-from datetime import datetime, timezone
 from telegram import Update
 from telegram.ext import ContextTypes
 from storage.database import Database
@@ -89,7 +88,7 @@ async def cmd_stats(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     msgs_sent   = await Database.get_stat("messages_sent",  "0")
     replies     = await Database.get_stat("replies_sent",   "0")
     msg_rows    = await Database.get_message_count()
-    facts       = await Database.get_all_facts()
+    fact_count  = await Database.get_fact_count()
     vec_counts  = await MemoryStore.count()
 
     text = (
@@ -97,7 +96,7 @@ async def cmd_stats(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
         f"Messages you've sent:  {msgs_sent}\n"
         f"AI replies:            {replies}\n"
         f"History rows in DB:    {msg_rows}\n"
-        f"Stored facts:          {len(facts)}\n"
+        f"Stored facts:          {fact_count}\n"
         f"Vector facts:          {vec_counts['facts']}\n"
         f"Vector conversations:  {vec_counts['conversations']}\n"
     )

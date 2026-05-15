@@ -19,14 +19,14 @@ async def proactive_digest(context: ContextTypes.DEFAULT_TYPE) -> None:
     try:
         msgs_sent = await Database.get_stat("messages_sent", "0")
         replies = await Database.get_stat("replies_sent", "0")
-        facts = await Database.get_all_facts()
+        fact_count = await Database.get_fact_count()
         vec_counts = await MemoryStore.count()
         now = datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M UTC")
 
         text = (
             f"Check-in ({now})\n\n"
             f"You've sent {msgs_sent} messages; I've replied {replies} times.\n"
-            f"Stored facts: {len(facts)} | "
+            f"Stored facts: {fact_count} | "
             f"Vectors — facts: {vec_counts['facts']}, "
             f"conversations: {vec_counts['conversations']}.\n\n"
             "Reply whenever you want to continue."
