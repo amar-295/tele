@@ -47,11 +47,21 @@ Guidelines:
 """
 
 
+def _dedup_facts(facts: list[str]) -> list[str]:
+    out = []
+    for f in facts:
+        if not any(f.lower() in kept.lower() or kept.lower() in f.lower()
+                   for kept in out):
+            out.append(f)
+    return out
+
 def _build_memory_block(facts: List[str], extra_context: List[str]) -> str:
     parts: List[str] = []
 
     if facts:
-        bullet_facts = "\n".join(f"• {f}" for f in facts[: settings.max_facts_in_prompt])
+        # token-opt P1: deduplicate facts before injection (daily audit)
+        deduped = _dedup_facts(facts)
+        bullet_facts = "\n".join(f"• {f}" for f in deduped[: settings.max_facts_in_prompt])
         parts.append(f"Stored facts about you:\n{bullet_facts}")
 
     # Extra context = vector recall hits NOT already in facts
