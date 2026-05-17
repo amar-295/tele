@@ -9,6 +9,7 @@ from typing import AsyncGenerator
 from fastapi import FastAPI, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse, StreamingResponse
+from openai import APIStatusError, RateLimitError
 from pydantic import BaseModel, Field
 
 from ai.llm import stream_llm
@@ -23,6 +24,7 @@ from ai.pipeline import (
 )
 from config import settings
 from storage.database import Database
+from utils.llm_errors import provider_error_reply
 
 log = logging.getLogger(__name__)
 
@@ -33,6 +35,21 @@ class ChatRequest(BaseModel):
 
 class FactRequest(BaseModel):
     fact: str = Field(..., min_length=1)
+
+
+def _error_status_code(exc: BaseException) -> int:
+    if isinstance(exc, RateLimitError):
+        return 429
+    if isinstance(exc, APIStatusError):
+        code = getattr(exc, "status_code", None)
+        if isinstance(code, int):
+            return code
+    return 502
+
+
+def _error_payload(exc: BaseException) -> dict[str, str]:
+    detail = provider_error_reply(exc) or "The AI backend could not complete this request."
+    return {"detail": detail}
 
 
 @asynccontextmanager
@@ -78,11 +95,18 @@ async def _stream_pipeline(user_message: str) -> AsyncGenerator[str, None]:
     messages = _prepare_messages(raw_history, user_message)
 
     reply_parts: list[str] = []
-    async for token in stream_llm(messages=messages, system=system):
-        if not token:
-            continue
-        reply_parts.append(token)
-        yield f"data: {json.dumps(token)}\n\n"
+    try:
+        async for token in stream_llm(messages=messages, system=system):
+            if not token:
+                continue
+            reply_parts.append(token)
+            yield f"data: {json.dumps(token)}\n\n"
+    except Exception as exc:
+        detail = _error_payload(exc)["detail"]
+        log.warning("Streaming chat failed: %s", exc)
+        yield f"data: {json.dumps({'error': detail})}\n\n"
+        yield "data: [DONE]\n\n"
+        return
 
     reply = "".join(reply_parts)
     await Database.add_message("assistant", reply)
@@ -113,7 +137,11 @@ async def chat_stream(payload: ChatRequest):
 
 @app.post("/chat")
 async def chat(payload: ChatRequest):
-    reply = await run_pipeline(payload.message.strip())
+    try:
+        reply = await run_pipeline(payload.message.strip())
+    except Exception as exc:
+        payload = _error_payload(exc)
+        raise HTTPException(status_code=_error_status_code(exc), detail=payload["detail"]) from exc
     return {"reply": reply}
 
 

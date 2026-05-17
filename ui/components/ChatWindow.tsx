@@ -17,6 +17,35 @@ function decodeSseData(rawData: string) {
   }
 }
 
+function extractErrorMessage(payload: unknown) {
+  if (
+    payload &&
+    typeof payload === "object" &&
+    "detail" in payload &&
+    typeof payload.detail === "string"
+  ) {
+    return payload.detail;
+  }
+  if (
+    payload &&
+    typeof payload === "object" &&
+    "error" in payload &&
+    typeof payload.error === "string"
+  ) {
+    return payload.error;
+  }
+  return null;
+}
+
+function hasStreamError(payload: unknown): payload is { error: string } {
+  return (
+    !!payload &&
+    typeof payload === "object" &&
+    "error" in payload &&
+    typeof (payload as { error?: unknown }).error === "string"
+  );
+}
+
 export default function ChatWindow() {
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [draft, setDraft] = useState("");
@@ -74,8 +103,19 @@ export default function ChatWindow() {
         body: JSON.stringify({ message: content }),
       });
 
-      if (!response.ok || !response.body) {
-        throw new Error("Chat request failed");
+      if (!response.ok) {
+        let message = "Chat request failed";
+        try {
+          const payload = (await response.json()) as unknown;
+          message = extractErrorMessage(payload) ?? message;
+        } catch {
+          message = response.statusText || message;
+        }
+        throw new Error(message);
+      }
+
+      if (!response.body) {
+        throw new Error("The AI backend did not return a stream.");
       }
 
       const reader = response.body.getReader();
@@ -115,6 +155,9 @@ export default function ChatWindow() {
           }
 
           const token = decodeSseData(data);
+          if (hasStreamError(token)) {
+            throw new Error(token.error);
+          }
           updateStreamingAssistant((message) => ({
             ...message,
             content: `${message.content}${token}`,
