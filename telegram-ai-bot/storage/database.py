@@ -329,6 +329,17 @@ class Database:
             return False
 
     @classmethod
+    async def get_fact_count(cls) -> int:
+        """Fast path to get total facts without loading them into memory."""
+        if cls._pg is not None:
+            async with cls._pg.acquire() as conn:
+                row = await conn.fetchrow("SELECT COUNT(*) AS c FROM facts")
+            return int(row["c"])
+        cur = await cls._sqlite.execute("SELECT COUNT(*) AS c FROM facts")
+        row = await cur.fetchone()
+        return row["c"]
+
+    @classmethod
     async def get_all_facts(cls) -> List[str]:
         if cls._pg is not None:
             async with cls._pg.acquire() as conn:
