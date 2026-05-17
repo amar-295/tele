@@ -1,6 +1,6 @@
-import json
 import logging
-import logging.handlers
+from json import dumps
+from logging.handlers import RotatingFileHandler
 from datetime import datetime, timezone
 from pathlib import Path
 from config import settings
@@ -18,7 +18,7 @@ class _JSONFormatter(logging.Formatter):
         }
         if record.exc_info:
             payload["exc"] = self.formatException(record.exc_info)
-        return json.dumps(payload)
+        return dumps(payload)
 
 
 def setup_logger() -> None:
@@ -35,7 +35,7 @@ def setup_logger() -> None:
     root.addHandler(ch)
 
     # ── Rotating file (JSON) ───────────────────────────────────────────────
-    fh = logging.handlers.RotatingFileHandler(
+    fh = RotatingFileHandler(
         Path(settings.logs_path) / "bot.log",
         maxBytes=5 * 1024 * 1024,   # 5 MB per file
         backupCount=4,

@@ -1,5 +1,4 @@
 import logging
-from datetime import datetime, timezone
 from telegram import Update
 from telegram.ext import ContextTypes
 from storage.database import Database
