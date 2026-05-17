@@ -1,4 +1,6 @@
 import logging
+import argparse
+import os
 from datetime import timedelta
 from urllib.parse import urlparse
 
@@ -79,7 +81,7 @@ async def post_init(application):
         log.info("Cleared Telegram webhook (polling mode)")
 
 
-def main():
+def run_telegram():
     app = (
         ApplicationBuilder()
         .token(settings.telegram_token)
@@ -124,6 +126,24 @@ def main():
             "Also stop any local `python main.py` or two pollers cause getUpdates Conflict."
         )
         app.run_polling(drop_pending_updates=True)
+
+
+def main():
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--mode", choices=("telegram", "api"), default="telegram")
+    args = parser.parse_args()
+
+    if args.mode == "api":
+        import uvicorn
+
+        uvicorn.run(
+            "api.server:app",
+            host="0.0.0.0",
+            port=int(os.environ.get("PORT", "8000")),
+        )
+        return
+
+    run_telegram()
 
 
 if __name__ == "__main__":

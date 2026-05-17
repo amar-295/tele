@@ -17,6 +17,10 @@ class Settings(BaseSettings):
     webhook_port: int = Field(8080, env="PORT")
     drop_pending_updates: bool = Field(False, env="DROP_PENDING_UPDATES")
 
+    # ── Personal web UI ───────────────────────────────────────────────────────
+    ui_api_key: str = Field(..., env="UI_API_KEY")
+    cors_origin: str = Field("http://localhost:3000", env="CORS_ORIGIN")
+
     # ── Groq API (OpenAI-compatible) ──────────────────────────────────────────
     groq_api_key:  str = Field(..., env="GROQ_API_KEY")
     groq_model:    str = Field("llama-3.3-70b-versatile", env="GROQ_MODEL")

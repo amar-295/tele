@@ -1,5 +1,5 @@
 import logging
-from typing import List, Dict
+from typing import AsyncGenerator, List, Dict
 
 from openai import APIConnectionError, APITimeoutError, InternalServerError
 from openai import AsyncOpenAI
@@ -51,6 +51,27 @@ async def call_llm(
             usage.completion_tokens,
         )
     return text
+
+
+async def stream_llm(
+    messages: List[Dict],
+    system: str,
+    max_tokens: int = None,
+) -> AsyncGenerator[str, None]:
+    """Yield text tokens from Groq as they arrive."""
+    if max_tokens is None:
+        max_tokens = settings.max_tokens
+
+    payload = [{"role": "system", "content": system}, *messages]
+    response = await _client.chat.completions.create(
+        model=settings.groq_model,
+        max_tokens=max_tokens,
+        messages=payload,
+        stream=True,
+    )
+
+    async for chunk in response:
+        yield chunk.choices[0].delta.content or ""
 
 
 def trim_to_token_budget(history: List[Dict], budget: int = None) -> List[Dict]:
