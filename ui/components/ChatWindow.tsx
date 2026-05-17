@@ -2,6 +2,7 @@
 
 import { FormEvent, KeyboardEvent, useEffect, useRef, useState } from "react";
 import Link from "next/link";
+import { BrainIcon, DatabaseIcon, SendIcon, SparkIcon } from "./Icons";
 import MemoryPanel from "./MemoryPanel";
 import MessageBubble, { ChatMessage } from "./MessageBubble";
 
@@ -192,24 +193,29 @@ export default function ChatWindow() {
   }
 
   return (
-    <div className="flex min-h-dvh flex-col bg-zinc-50 dark:bg-zinc-950">
-      <header className="sticky top-0 z-20 border-b border-zinc-200 bg-white/90 backdrop-blur dark:border-zinc-800 dark:bg-zinc-950/90">
+    <div className="relative flex min-h-dvh flex-col overflow-hidden bg-[radial-gradient(circle_at_top_left,#e0e7ff_0,transparent_28rem),linear-gradient(180deg,#fafafa,#f4f4f5)] dark:bg-[radial-gradient(circle_at_top_left,rgba(79,70,229,0.22)_0,transparent_30rem),linear-gradient(180deg,#08080a,#0b0b10)]">
+      <header className="sticky top-0 z-20 border-b border-zinc-200/80 bg-white/75 shadow-sm shadow-zinc-950/5 backdrop-blur-xl dark:border-white/10 dark:bg-zinc-950/70 dark:shadow-black/20">
         <div className="mx-auto flex h-16 max-w-4xl items-center justify-between px-4 sm:px-6">
-          <Link href="/" className="text-base font-semibold tracking-tight">
-            Personal AI
+          <Link href="/" className="flex items-center gap-3 text-base font-semibold tracking-tight">
+            <span className="grid h-9 w-9 place-items-center rounded-xl bg-zinc-950 text-white shadow-lg shadow-zinc-950/15 ring-1 ring-white/10 dark:bg-white dark:text-zinc-950">
+              <SparkIcon className="h-4.5 w-4.5" />
+            </span>
+            <span>Personal AI</span>
           </Link>
           <nav className="flex items-center gap-2">
             <button
               type="button"
               onClick={() => setMemoryOpen(true)}
-              className="hidden rounded-lg border border-zinc-300 px-3 py-2 text-sm font-medium text-zinc-700 hover:bg-zinc-100 dark:border-zinc-700 dark:text-zinc-200 dark:hover:bg-zinc-900 sm:inline-flex"
+              className="hidden items-center gap-2 rounded-xl border border-zinc-300/80 bg-white/70 px-3 py-2 text-sm font-medium text-zinc-700 shadow-sm shadow-zinc-950/5 hover:bg-white dark:border-white/10 dark:bg-white/5 dark:text-zinc-200 dark:hover:bg-white/10 sm:inline-flex"
             >
+              <DatabaseIcon className="h-4 w-4" />
               Memory
             </button>
             <Link
               href="/memory"
-              className="rounded-lg bg-indigo-600 px-3 py-2 text-sm font-semibold text-white hover:bg-indigo-500"
+              className="inline-flex items-center gap-2 rounded-xl bg-zinc-950 px-3 py-2 text-sm font-semibold text-white shadow-lg shadow-zinc-950/15 hover:bg-zinc-800 dark:bg-white dark:text-zinc-950 dark:hover:bg-zinc-200"
             >
+              <BrainIcon className="h-4 w-4" />
               Manage
             </Link>
           </nav>
@@ -221,6 +227,9 @@ export default function ChatWindow() {
           {messages.length === 0 ? (
             <div className="flex min-h-[55dvh] items-center justify-center px-2 text-center">
               <div className="w-full max-w-sm">
+                <div className="mx-auto mb-5 grid h-14 w-14 place-items-center rounded-2xl border border-zinc-200 bg-white text-zinc-950 shadow-xl shadow-zinc-950/10 dark:border-white/10 dark:bg-white/10 dark:text-white">
+                  <SparkIcon className="h-6 w-6" />
+                </div>
                 <h1 className="text-balance text-2xl font-semibold tracking-tight text-zinc-950 dark:text-zinc-50">
                   What are we thinking through?
                 </h1>
@@ -241,9 +250,9 @@ export default function ChatWindow() {
 
         <form
           onSubmit={submitMessage}
-          className="sticky bottom-0 border-t border-zinc-200 bg-zinc-50/95 px-4 py-3 backdrop-blur dark:border-zinc-800 dark:bg-zinc-950/95 sm:px-6"
+          className="sticky bottom-0 border-t border-zinc-200/80 bg-zinc-50/80 px-4 py-3 backdrop-blur-xl dark:border-white/10 dark:bg-zinc-950/80 sm:px-6"
         >
-          <div className="flex min-w-0 items-end gap-2 rounded-2xl border border-zinc-300 bg-white p-2 shadow-sm dark:border-zinc-700 dark:bg-zinc-900">
+          <div className="flex min-w-0 items-end gap-2 rounded-2xl border border-zinc-300/80 bg-white/90 p-2 shadow-2xl shadow-zinc-950/10 ring-1 ring-white/80 dark:border-white/10 dark:bg-white/10 dark:shadow-black/30 dark:ring-white/5">
             <textarea
               ref={textareaRef}
               value={draft}
@@ -256,9 +265,10 @@ export default function ChatWindow() {
             <button
               type="submit"
               disabled={isSending || !draft.trim()}
-              className="min-h-11 flex-none rounded-xl bg-indigo-600 px-4 text-sm font-semibold text-white transition hover:bg-indigo-500 disabled:cursor-not-allowed disabled:bg-zinc-300 disabled:text-zinc-500 dark:disabled:bg-zinc-800"
+              className="grid min-h-11 w-11 flex-none place-items-center rounded-xl bg-zinc-950 text-white shadow-lg shadow-zinc-950/15 transition hover:bg-zinc-800 disabled:cursor-not-allowed disabled:bg-zinc-300 disabled:text-zinc-500 dark:bg-white dark:text-zinc-950 dark:hover:bg-zinc-200 dark:disabled:bg-zinc-800 dark:disabled:text-zinc-500"
+              aria-label="Send message"
             >
-              Send
+              <SendIcon className="h-4.5 w-4.5" />
             </button>
           </div>
         </form>

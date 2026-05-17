@@ -2,6 +2,7 @@
 
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
+import { BotIcon, MessageIcon } from "./Icons";
 
 export type ChatMessage = {
   role: "user" | "assistant";
@@ -17,13 +18,20 @@ export default function MessageBubble({ message }: MessageBubbleProps) {
   const isUser = message.role === "user";
 
   return (
-    <div className={`flex w-full ${isUser ? "justify-end" : "justify-start"}`}>
+    <div
+      className={`flex w-full items-end gap-2 ${isUser ? "justify-end" : "justify-start"}`}
+    >
+      {!isUser ? (
+        <div className="mb-1 grid h-8 w-8 flex-none place-items-center rounded-xl border border-zinc-200 bg-white text-zinc-700 shadow-sm dark:border-white/10 dark:bg-white/10 dark:text-zinc-200">
+          <BotIcon className="h-4 w-4" />
+        </div>
+      ) : null}
       <div
         className={[
           "max-w-[88%] rounded-2xl px-4 py-3 text-[15px] leading-7 shadow-sm sm:max-w-[74%]",
           isUser
-            ? "rounded-br-md bg-indigo-600 text-white"
-            : "rounded-bl-md border border-zinc-200 bg-white text-zinc-900 dark:border-zinc-800 dark:bg-zinc-900 dark:text-zinc-100",
+            ? "rounded-br-md bg-zinc-950 text-white shadow-zinc-950/15 dark:bg-white dark:text-zinc-950"
+            : "rounded-bl-md border border-zinc-200 bg-white/90 text-zinc-900 shadow-zinc-950/5 backdrop-blur dark:border-white/10 dark:bg-white/10 dark:text-zinc-100",
         ].join(" ")}
       >
         {isUser ? (
@@ -102,6 +110,11 @@ export default function MessageBubble({ message }: MessageBubbleProps) {
           </div>
         )}
       </div>
+      {isUser ? (
+        <div className="mb-1 grid h-8 w-8 flex-none place-items-center rounded-xl bg-zinc-950 text-white shadow-sm dark:bg-white dark:text-zinc-950">
+          <MessageIcon className="h-4 w-4" />
+        </div>
+      ) : null}
     </div>
   );
 }
