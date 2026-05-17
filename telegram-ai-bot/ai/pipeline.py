@@ -67,6 +67,35 @@ def _build_memory_block(facts: List[str], extra_context: List[str]) -> str:
     return "\n\n".join(parts)
 
 
+
+async def _fetch_context(user_message: str):
+    facts_task   = asyncio.create_task(Database.get_all_facts())
+    history_task = asyncio.create_task(
+        Database.get_recent_history(limit=settings.max_history_messages)
+    )
+    recall_task  = asyncio.create_task(MemoryStore.recall(user_message))
+
+    return await asyncio.gather(
+        facts_task, history_task, recall_task
+    )
+
+def _prepare_messages(raw_history: List[Dict], user_message: str) -> List[Dict]:
+    history: List[Dict] = raw_history
+    if history and history[-1]["role"] == "user":
+        history = history[:-1]
+    history = trim_to_token_budget(history)
+
+    return history + [{"role": "user", "content": user_message}]
+
+def _dispatch_background_tasks(user_message: str, reply: str) -> None:
+    exchange = f"User: {user_message}\nAssistant: {reply}"
+    doc_id   = f"conv_{int(datetime.now(timezone.utc).timestamp())}"
+    asyncio.create_task(
+        MemoryStore.save(exchange, doc_id, collection="conversations")
+    )
+    asyncio.create_task(extract_and_store(user_message, reply))
+
+
 # ── Main entry point ────────────────────────────────────────────────────────────
 
 async def run_pipeline(user_message: str) -> str:
@@ -77,15 +106,7 @@ async def run_pipeline(user_message: str) -> str:
     await Database.increment_stat("messages_sent")
 
     # 2. Parallel data fetch
-    facts_task   = asyncio.create_task(Database.get_all_facts())
-    history_task = asyncio.create_task(
-        Database.get_recent_history(limit=settings.max_history_messages)
-    )
-    recall_task  = asyncio.create_task(MemoryStore.recall(user_message))
-
-    all_facts, raw_history, recalled = await asyncio.gather(
-        facts_task, history_task, recall_task
-    )
+    all_facts, raw_history, recalled = await _fetch_context(user_message)
 
     # 3. Build system prompt
     memory_block = _build_memory_block(all_facts, recalled)
@@ -96,12 +117,7 @@ async def run_pipeline(user_message: str) -> str:
 
     # 4. Trim history to token budget
     #    The last message is the current user turn — exclude it from history.
-    history: List[Dict] = raw_history
-    if history and history[-1]["role"] == "user":
-        history = history[:-1]
-    history = trim_to_token_budget(history)
-
-    messages = history + [{"role": "user", "content": user_message}]
+    messages = _prepare_messages(raw_history, user_message)
 
     # 5. Call Groq (with built-in retry)
     reply = await call_llm(messages=messages, system=system)
@@ -110,15 +126,8 @@ async def run_pipeline(user_message: str) -> str:
     await Database.add_message("assistant", reply)
     await Database.increment_stat("replies_sent")
 
-    # 7. Background: embed this exchange for future recall
-    exchange = f"User: {user_message}\nAssistant: {reply}"
-    doc_id   = f"conv_{int(datetime.now(timezone.utc).timestamp())}"
-    asyncio.create_task(
-        MemoryStore.save(exchange, doc_id, collection="conversations")
-    )
-
-    # 8. Background: extract and store new facts
-    asyncio.create_task(extract_and_store(user_message, reply))
+    # 7 & 8. Background tasks
+    _dispatch_background_tasks(user_message, reply)
 
     log.info(
         "Pipeline done | facts=%d | recalled=%d | history=%d msgs",
