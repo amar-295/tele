@@ -48,10 +48,14 @@ Guidelines:
 
 
 def _dedup_facts(facts: list[str]) -> list[str]:
-    out = []
-    for f in facts:
-        if not any(f.lower() in kept.lower() or kept.lower() in f.lower()
-                   for kept in out):
+    out: list[str] = []
+    # Prefer longer, more informative facts over shorter substring matches.
+    # Keep ordering stable for facts of the same length.
+    ordered_facts = sorted(enumerate(facts), key=lambda item: (-len(item[1]), item[0]))
+
+    for _, f in ordered_facts:
+        f_lower = f.lower()
+        if not any(f_lower in kept.lower() for kept in out):
             out.append(f)
     return out
 
